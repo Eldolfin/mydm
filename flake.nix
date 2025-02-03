@@ -46,11 +46,10 @@
         craneLib = crane.mkLib pkgs;
         environmentVars = {
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-          LD_LIBRARY_PATH = "${lib.makeLibraryPath commonArgs.nativeBuildInputs}:$LD_LIBRARY_PATH";
+          LD_LIBRARY_PATH = "${lib.makeLibraryPath commonArgs.buildInputs}:$LD_LIBRARY_PATH";
         };
 
         commonArgs = {
-          inherit environmentVars;
           src = let
             unfilteredRoot = ./.; # The original, unfiltered source
           in
@@ -64,7 +63,7 @@
 
           strictDeps = true;
 
-          nativeBuildInputs = with pkgs; [
+          buildInputs = with pkgs; [
             libclang.lib
             # linux-pam
             libGL
@@ -74,7 +73,10 @@
             xorg.libXcursor
             xorg.libXi
             xorg.libXrandr
+            pam
+            rustPlatform.bindgenHook
           ];
+          env = environmentVars;
         };
 
         mydm = craneLib.buildPackage (commonArgs
@@ -104,22 +106,23 @@
 
           packages = with pkgs;
             [
+              config.packages.default
               git
               entr
-              # config.packages.default
               cargo
               rust-analyzer
               rustPackages.clippy
               rustc
               rustfmt
+              weston
             ]
-            ++ commonArgs.nativeBuildInputs;
+            ++ commonArgs.buildInputs;
 
           enterShell = ''
             echo hello
           '';
 
-          processes.hello.exec = "echo hello";
+          processes.watch.exec = "just weston-watch";
           env = environmentVars;
         };
       };

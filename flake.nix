@@ -26,6 +26,8 @@
     devenv-root,
     flake-utils,
     crane,
+    nixpkgs,
+    self,
     ...
   }:
     flake-parts.lib.mkFlake {inherit inputs;} {
@@ -38,9 +40,9 @@
         config,
         pkgs,
         lib,
+        system,
         # self',
         # inputs',
-        # system,
         ...
       }: let
         craneLib = crane.mkLib pkgs;
@@ -125,11 +127,19 @@
           processes.watch.exec = "just weston-watch";
           env = environmentVars;
         };
+
+        checks = import ./nix/tests {
+          pkgs = nixpkgs.legacyPackages.${system};
+          testModules = [
+            self.nixosModules.default
+          ];
+        };
       };
       flake = {
         # The usual flake attributes can be defined here, including system-
         # agnostic ones like nixosModule and system-enumerating ones, although
         # those are more easily expressed in perSystem.
+        nixosModules.default = import ./nix/modules/nixosService.nix;
       };
     };
 }

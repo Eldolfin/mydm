@@ -103,10 +103,10 @@ where
                             })
                     });
                     ui.horizontal(|ui| {
-                        ui.label("Password: ");
                         let password_field = TextEdit::singleline(&mut self.password)
                             .password(!self.show_password)
                             .background_color(self.last_attemp_result.color(ui))
+                            .hint_text("Password...")
                             .ui(ui);
                         self.show_password = ui
                             .label(RichText::new("👁").color(Color32::GREEN).size(26.))

@@ -6,3 +6,6 @@ weston-watch:
 
 watch:
     git ls-files | entr -ncr cargo run
+
+test-nix:
+    nix flake check

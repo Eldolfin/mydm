@@ -11,18 +11,27 @@ in
       hostPkgs = pkgs;
       # This speeds up the evaluation by skipping evaluating documentation
       defaults.documentation.enable = lib.mkDefault false;
-      imports = [test] ++ testModules;
+      imports = [test];
       enableOCR = true;
       nodes = {
         c = _: {
-          imports = [];
+          imports = [] ++ testModules;
+          users.users.test = {
+            password = "test";
+            isNormalUser = true;
+          };
+          services = {
+            xserver.enable = true;
+          };
           # reference dm
           # services.displayManager.sddm = {
           #   enable = true;
           #   wayland.enable = true;
           # };
-          services = {};
-          eldolfin.services.mydm.enable = true;
+          eldolfin.services.mydm = {
+            enable = true;
+            wayland.enable = true;
+          };
           virtualisation = {
             memorySize = 4096;
             diskSize = 8192;

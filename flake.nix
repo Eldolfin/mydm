@@ -48,7 +48,7 @@
         craneLib = crane.mkLib pkgs;
         environmentVars = {
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-          LD_LIBRARY_PATH = "${lib.makeLibraryPath commonArgs.buildInputs}:$LD_LIBRARY_PATH";
+          LD_LIBRARY_PATH = "${lib.makeLibraryPath commonArgs.buildInputs}";
         };
 
         commonArgs = {
@@ -81,10 +81,16 @@
           env = environmentVars;
         };
 
-        mydm = craneLib.buildPackage (commonArgs
+        mydm-unwrapped = craneLib.buildPackage (commonArgs
           // {
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
           });
+        mydm = pkgs.writeScriptBin "mydm" ''
+          #!/bin/sh
+          export LD_LIBRARY_PATH=${environmentVars.LD_LIBRARY_PATH}
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          ${mydm-unwrapped}/bin/mydm "$@"
+        '';
       in {
         packages.default = mydm;
 
@@ -117,6 +123,8 @@
               rustc
               rustfmt
               weston
+              nix-output-monitor
+              bacon
             ]
             ++ commonArgs.buildInputs;
 
@@ -139,7 +147,7 @@
         # The usual flake attributes can be defined here, including system-
         # agnostic ones like nixosModule and system-enumerating ones, although
         # those are more easily expressed in perSystem.
-        nixosModules.default = import ./nix/modules/nixosService.nix;
+        nixosModules.default = (import ./nix/modules/nixosService.nix) {inherit self;};
       };
     };
 }

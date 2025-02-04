@@ -8,4 +8,8 @@ watch:
     git ls-files | entr -ncr cargo run
 
 test-nix:
-    nix flake check
+    nix build .\#checks.x86_64-linux.launch |& nom
+
+test-nix-interactive:
+    set -xeu -o pipefail
+    nix build .\#checks.x86_64-linux.launch.driverInteractive && ./result/bin/nixos-test-driver

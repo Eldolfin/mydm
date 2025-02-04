@@ -1,12 +1,46 @@
-use std::sync::{Arc, Mutex};
+mod config;
+mod ui;
 
 use anyhow::{anyhow, Context};
-use egui::{Align2, Color32, RichText, TextEdit, Ui, Widget};
 use log::debug;
+use std::{
+    env::{self, VarError},
+    process::Command,
+    sync::{Arc, Mutex},
+};
 
 fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    debug!("env: {:#?}", env::vars().collect::<Vec<_>>());
+    init_logger()?;
+    let config = config::load()?;
+    debug!("config: {config:#?}");
 
+    let in_compositor = ["WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY"]
+        .iter()
+        .any(|res| env::var(res) != Err(VarError::NotPresent));
+
+    if in_compositor || config.wayland.is_none() {
+        main_unwrapped()
+    } else {
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg(format!(
+                "{} -- {}",
+                config.wayland.unwrap().compositor,
+                env::args()
+                    .map(|arg| arg.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ))
+            .spawn()
+            .context("Could not spawn weston process")?;
+        child.wait().context("Weston process failed")?;
+        Ok(())
+    }
+}
+
+/// runs the program, needs to be wrapped in a compositor if
+fn main_unwrapped() -> anyhow::Result<()> {
     let users = unsafe { uzers::all_users() };
     let users = users
         .filter(|user| {
@@ -19,7 +53,7 @@ fn main() -> anyhow::Result<()> {
         pam::Client::with_password("system-auth").context("Could not init PAM client!")?,
     ));
 
-    MyDm::new(users, |login, password| {
+    ui::MyDm::new(users, |login, password| {
         debug!("{login}: {}", "*".repeat(password.len()),);
         let mut client = client.lock().unwrap();
         client.conversation_mut().set_credentials(login, password);
@@ -37,115 +71,14 @@ fn main() -> anyhow::Result<()> {
     .map_err(|err| anyhow!("ui errored: {:?}", err))
 }
 
-struct MyDm<F>
-where
-    F: Fn(String, String) -> anyhow::Result<()>,
-{
-    users: Vec<String>,
-    user_index: usize,
-    password: String,
-    show_password: bool,
-    on_login: F,
-    last_attemp_result: LoginResult,
-}
+fn init_logger() -> anyhow::Result<()> {
+    // let target = Box::new(File::create("/tmp/mydm.log").context("Can't create log file")?);
 
-impl<F> MyDm<F>
-where
-    F: Fn(String, String) -> anyhow::Result<()>,
-{
-    fn new(users: Vec<String>, on_login: F) -> Self {
-        assert!(!users.is_empty(), "Can't show display manager with 0 users");
-        Self {
-            users,
-            on_login,
-            user_index: 0,
-            password: String::new(),
-            show_password: false,
-            last_attemp_result: LoginResult::NoAttempt,
-        }
-    }
+    // env_logger::Builder::new()
+    //     .target(env_logger::Target::Pipe(target))
+    //     .filter(None, LevelFilter::Debug)
+    //     .init();
 
-    fn run(self) -> Result<(), eframe::Error> {
-        let options = eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_fullscreen(true),
-            ..Default::default()
-        };
-        eframe::run_native(
-            "MyDM",
-            options,
-            Box::new(|cc| {
-                egui_extras::install_image_loaders(&cc.egui_ctx);
-
-                Ok(Box::new(self))
-            }),
-        )
-    }
-}
-
-impl<F> eframe::App for MyDm<F>
-where
-    F: Fn(String, String) -> anyhow::Result<()>,
-{
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::Window::new("Login")
-            .collapsible(false)
-            .resizable(false)
-            .anchor(Align2::CENTER_CENTER, [0., 0.])
-            .show(ctx, |ui| {
-                ui.vertical(|ui| {
-                    ui.horizontal(|ui| {
-                        egui::ComboBox::from_label("")
-                            .selected_text(self.users[self.user_index].to_owned())
-                            .show_ui(ui, |ui| {
-                                for (i, login) in self.users.iter().enumerate() {
-                                    ui.selectable_value(&mut self.user_index, i, login.to_owned());
-                                }
-                            })
-                    });
-                    ui.horizontal(|ui| {
-                        let password_field = TextEdit::singleline(&mut self.password)
-                            .password(!self.show_password)
-                            .background_color(self.last_attemp_result.color(ui))
-                            .hint_text("Password...")
-                            .ui(ui);
-                        self.show_password = ui
-                            .label(RichText::new("👁").color(Color32::GREEN).size(26.))
-                            .hovered();
-                        if password_field
-                            .ctx
-                            .input(|i| i.key_pressed(egui::Key::Enter))
-                        {
-                            let res = (self.on_login)(
-                                self.users[self.user_index].to_owned(),
-                                self.password.to_owned(),
-                            )
-                            .inspect_err(|err| debug!("Error while logging in: {:#}", err));
-
-                            self.last_attemp_result = if res.is_ok() {
-                                LoginResult::Success
-                            } else {
-                                LoginResult::WrongPassword
-                            };
-                            debug!("login_result = {:?}", self.last_attemp_result);
-                        }
-                    });
-                });
-            });
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum LoginResult {
-    NoAttempt,
-    Success,
-    WrongPassword,
-}
-impl LoginResult {
-    fn color(&self, ui: &Ui) -> Color32 {
-        match self {
-            LoginResult::NoAttempt => ui.style().visuals.widgets.active.bg_fill,
-            LoginResult::Success => Color32::DARK_GREEN,
-            LoginResult::WrongPassword => Color32::DARK_RED,
-        }
-    }
+    env_logger::init();
+    Ok(())
 }

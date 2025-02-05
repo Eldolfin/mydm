@@ -88,7 +88,8 @@
         mydm = pkgs.writeScriptBin "mydm" ''
           #!/bin/sh
           export LD_LIBRARY_PATH=${environmentVars.LD_LIBRARY_PATH}
-          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          export XDG_RUNTIME_DIR=$(mktemp -d)
+          export RUST_LOG=debug
           ${mydm-unwrapped}/bin/mydm "$@"
         '';
       in {

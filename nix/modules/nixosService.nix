@@ -145,7 +145,7 @@ in {
         {
           assertion = xcfg.enable || cfg.wayland.enable;
           message = ''
-            MyDM requires either services.xserver.enable or services.displayManager.sddm.wayland.enable to be true
+            MyDM requires either services.xserver.enable or eldolfin.services.mydm.wayland.enable to be true
           '';
         }
         {
@@ -165,9 +165,10 @@ in {
         };
         displayManager = {
           enable = true;
-          execCmd = "exec /run/current-system/sw/bin/mydm";
+          execCmd = "exec ${mydm}/bin/mydm";
         };
       };
+      systemd.services.display-manager.enable = true;
       environment = {
         etc."mydm/config.yml".source = cfgFile;
         # pathsToLink = [
@@ -206,35 +207,38 @@ in {
           group = "mydm";
           isSystemUser = true;
         };
-        groups.mydm = {};
+        groups = {
+          mydm = {};
+          video = {members = ["mydm"];};
+        };
       };
       systemd = {
         # tmpfiles.packages = [mydm];
 
-        services.mydm = {
-          enable = true;
-          environment = {
-            RUST_LOG = "debug";
-          };
-          aliases = ["display-manager.service"];
-          description = "Very Simple Desktop Manager written in rust";
-          partOf = ["graphical.target"];
-          after = [
-            "systemd-user-sessions.service"
-            "getty@tty7.service"
-            "plymouth-quit.service"
-            "systemd-logind.service"
-          ];
-          conflicts = [
-            "getty@tty7.service"
-          ];
-          startLimitBurst = 2;
-          startLimitIntervalSec = 30;
-          serviceConfig = {
-            Restart = "always";
-            ExecStart = "${mydm}/bin/mydm";
-          };
-        };
+        # services.mydm = {
+        #   enable = true;
+        #   environment = {
+        #     RUST_LOG = "debug";
+        #   };
+        #   aliases = ["display-manager.service"];
+        #   description = "Very Simple Desktop Manager written in rust";
+        #   partOf = ["graphical.target"];
+        #   after = [
+        #     "systemd-user-sessions.service"
+        #     "getty@tty7.service"
+        #     "plymouth-quit.service"
+        #     "systemd-logind.service"
+        #   ];
+        #   conflicts = [
+        #     "getty@tty7.service"
+        #   ];
+        #   startLimitBurst = 2;
+        #   startLimitIntervalSec = 30;
+        #   # serviceConfig = {
+        #   #   Restart = "always";
+        #   #   ExecStart = "${mydm}/bin/mydm";
+        #   # };
+        # };
       };
     };
 }

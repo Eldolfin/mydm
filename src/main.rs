@@ -22,16 +22,17 @@ fn main() -> anyhow::Result<()> {
     if in_compositor || config.wayland.is_none() {
         main_unwrapped()
     } else {
+        let wrapped_cmd = format!(
+            "{} -- {}",
+            config.wayland.unwrap().compositor,
+            env::args()
+                .map(|arg| arg.to_string())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
         let mut child = Command::new("/bin/sh")
             .arg("-c")
-            .arg(format!(
-                "{} -- {}",
-                config.wayland.unwrap().compositor,
-                env::args()
-                    .map(|arg| arg.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ))
+            .arg(wrapped_cmd)
             .spawn()
             .context("Could not spawn weston process")?;
         child.wait().context("Weston process failed")?;
@@ -50,7 +51,7 @@ fn main_unwrapped() -> anyhow::Result<()> {
         .map(|user| user.name().to_str().unwrap().to_owned())
         .collect::<Vec<_>>();
     let client = Arc::new(Mutex::new(
-        pam::Client::with_password("system-auth").context("Could not init PAM client!")?,
+        pam::Client::with_password("mydm").context("Could not init PAM client!")?,
     ));
 
     ui::MyDm::new(users, |login, password| {

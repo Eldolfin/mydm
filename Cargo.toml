@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.95"
+base64 = "0.22.1"
 eframe = "0.30.0"
 egui = "0.30.0"
 egui_extras = { version = "0.30.0", features = ["image"] }
@@ -13,7 +14,10 @@ figment = { version = "0.10.19", features = ["yaml"] }
 log = "0.4.25"
 pam = "0.8.0"
 serde = "1.0.217"
+serde_json = "1.0.138"
 uzers = "0.12.1"
+walkdir = "2.5.0"
+xdgkit2 = "3.2.5"
 
 [dev-dependencies]
 rstest = "0.24.0"

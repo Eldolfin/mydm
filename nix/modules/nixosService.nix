@@ -1,3 +1,4 @@
+# adapted from https://github.com/NixOS/nixpkgs/blob/nixos-unstable/nixos/modules/services/display-managers/sddm.nix
 {self}: {
   config,
   lib,
@@ -8,7 +9,7 @@ with lib; let
   xcfg = config.services.xserver;
   dmcfg = config.services.displayManager;
   cfg = config.eldolfin.services.mydm;
-  # xEnv = config.systemd.services.display-manager.environment;
+  xEnv = config.systemd.services.display-manager.environment;
   mydm = cfg.package;
   ymlFmt = pkgs.formats.yaml {};
   # mydm = cfg.package.override (old: {
@@ -16,6 +17,19 @@ with lib; let
   #   withLayerShellQt = cfg.wayland.compositor == "kwin";
   # });
   # commented parts come from sddm config but are not implemented yet
+  xserverWrapper = pkgs.writeShellScript "xserver-wrapper" ''
+    ${concatMapStrings (n: "export ${n}=\"${getAttr n xEnv}\"\n") (attrNames xEnv)}
+    exec systemd-cat -t xserver-wrapper ${xcfg.displayManager.xserverBin} ${toString xcfg.displayManager.xserverArgs} "$@"
+  '';
+
+  Xsetup = pkgs.writeShellScript "Xsetup" ''
+    ${cfg.setupScript}
+    ${xcfg.displayManager.setupCommands}
+  '';
+
+  Xstop = pkgs.writeShellScript "Xstop" ''
+    ${cfg.stopScript}
+  '';
   defaultConfig =
     {
       # General =
@@ -59,28 +73,28 @@ with lib; let
       #   HideShells = "/run/current-system/sw/bin/nologin";
       # };
 
+      session_dir = "${dmcfg.sessionData.desktops}/share";
       wayland = {
         # EnableHiDPI = cfg.enableHidpi;
-        # SessionDir = "${dmcfg.sessionData.desktops}/share/wayland-sessions";
         compositor = lib.optionalString cfg.wayland.enable cfg.wayland.compositorCommand;
       };
     }
-    # // optionalAttrs xcfg.enable {
-    #   X11 = {
-    #     MinimumVT =
-    #       if xcfg.tty != null
-    #       then xcfg.tty
-    #       else 7;
-    #     ServerPath = toString xserverWrapper;
-    #     XephyrPath = "${pkgs.xorg.xorgserver.out}/bin/Xephyr";
-    #     SessionCommand = toString dmcfg.sessionData.wrapper;
-    #     SessionDir = "${dmcfg.sessionData.desktops}/share/xsessions";
-    #     XauthPath = "${pkgs.xorg.xauth}/bin/xauth";
-    #     DisplayCommand = toString Xsetup;
-    #     DisplayStopCommand = toString Xstop;
-    #     EnableHiDPI = cfg.enableHidpi;
-    #   };
-    # }
+    // optionalAttrs xcfg.enable {
+      x11 = {
+        # minimum_vt =
+        #   if xcfg.tty != null
+        #   then xcfg.tty
+        #   else 7;
+        server_path = toString xserverWrapper;
+        xephyr_path = "${pkgs.xorg.xorgserver.out}/bin/Xephyr";
+        session_command = toString dmcfg.sessionData.wrapper;
+        session_dir = "${dmcfg.sessionData.desktops}/share/xsessions";
+        xauth_path = "${pkgs.xorg.xauth}/bin/xauth";
+        display_command = toString Xsetup;
+        displaystop_command = toString Xstop;
+        # enable_hidpi = cfg.enableHidpi;
+      };
+    }
     # // optionalAttrs dmcfg.autoLogin.enable {
     #   Autologin = {
     #     User = dmcfg.autoLogin.user;
@@ -134,6 +148,27 @@ in {
       default = {};
       description = ''
         Extra settings merged in and overwriting defaults in mydm/config.conf.
+      '';
+    };
+    setupScript = mkOption {
+      type = types.str;
+      default = "";
+      example = ''
+        # workaround for using NVIDIA Optimus without Bumblebee
+        xrandr --setprovideroutputsource modesetting NVIDIA-0
+        xrandr --auto
+      '';
+      description = ''
+        A script to execute when starting the display server. DEPRECATED, please
+        use {option}`services.xserver.displayManager.setupCommands`.
+      '';
+    };
+
+    stopScript = mkOption {
+      type = types.str;
+      default = "";
+      description = ''
+        A script to execute when stopping the display server.
       '';
     };
   };

@@ -19,15 +19,40 @@ in
           users.users.test = {
             password = "test";
             isNormalUser = true;
+            # TODO: users shouldn't need to be root to open a desktop...
+            extraGroups = [
+              "wheel"
+            ];
           };
+          programs.sway.enable = true;
           services = {
-            xserver.enable = true;
+            xserver = {
+              enable = true;
+              windowManager = {
+                i3.enable = true;
+              };
+              desktopManager = {
+                gnome.enable = true;
+                xfce = {
+                  enable = true;
+                  noDesktop = true;
+                  enableXfwm = false;
+                  enableScreensaver = false;
+                };
+              };
+            };
           };
-          # reference dm
-          # services.displayManager.sddm = {
-          #   enable = true;
-          #   wayland.enable = true;
-          # };
+          # reference dms
+          services = {
+            # displayManager.sddm = {
+            #   enable = true;
+            #   wayland.enable = true;
+            # };
+            # greetd = {
+            #   enable = true;
+            # };
+          };
+
           eldolfin.services.mydm = {
             enable = true;
             wayland.enable = true;

@@ -1,5 +1,6 @@
 export RUST_LOG := "debug"
 export RUST_LOG_STYLE := "always"
+export QEMU_OPTS := "-display default,show-cursor=on -enable-kvm"
 
 weston-watch:
     weston -- just watch

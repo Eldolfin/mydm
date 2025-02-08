@@ -1,3 +1,4 @@
+mod auth;
 mod config;
 mod desktops;
 mod ui;
@@ -12,9 +13,7 @@ use std::{
     collections::HashMap,
     env::{self, VarError},
     process::Command,
-    sync::{Arc, Mutex},
 };
-use ui::LoginRequest;
 
 #[derive(Debug, Serialize, Deserialize)]
 
@@ -26,6 +25,8 @@ fn env_encoded() -> String {
             .iter()
             .filter_map(|var| Some((var.to_string(), env::var(var).ok()?))),
     );
+
+    debug!("original env: {env:#?}");
 
     let json = serde_json::to_string(&EncodableEnv(env)).unwrap();
 
@@ -68,8 +69,8 @@ fn main() -> anyhow::Result<()> {
             "{} -- {}",
             config.wayland.compositor,
             env::args()
-                .chain([env_encoded()])
                 .map(|arg| arg.to_string())
+                .chain([env_encoded()])
                 .collect::<Vec<_>>()
                 .join(" ")
         );
@@ -93,34 +94,8 @@ fn main_unwrapped(config: Config) -> anyhow::Result<()> {
         })
         .map(|user| user.name().to_str().unwrap().to_owned())
         .collect::<Vec<_>>();
-    let client = Arc::new(Mutex::new(
-        pam::Client::with_password("mydm").context("Could not init PAM client!")?,
-    ));
-    client.lock().unwrap().close_on_drop = false;
-    let original_path = std::env::var("PATH").expect("PATH variable to be set");
     let desktops = list_desktops(&config.session_dir)?;
-    let on_login = |LoginRequest {
-                        login,
-                        password,
-                        desktop,
-                    }| {
-        debug!("{login} ({desktop:?}]): {}", "*".repeat(password.len()));
-        let mut client = client.lock().unwrap();
-        let user = uzers::get_user_by_name(&login).unwrap();
-        client
-            .conversation_mut()
-            .set_credentials(login.clone(), password);
-        client.authenticate().context("Authentication failed")?;
-        client.open_session().context("Could not open a session")?;
-
-        let new_path = std::env::var("PATH").expect("PATH variable to be set");
-        let combined = format!("{new_path}:{original_path}");
-        std::env::set_var("PATH", &combined);
-
-        desktop.run_as(user)?;
-        // TODO: maybe we should exit here as the desktop is launched
-        Ok(())
-    };
+    let on_login = auth::auth();
 
     ui::MyDm::new(ui::MyDmData {
         users,

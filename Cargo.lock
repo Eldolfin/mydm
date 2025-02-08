@@ -2050,6 +2050,7 @@ dependencies = [
  "env_logger",
  "figment",
  "log",
+ "nix",
  "pam",
  "rstest",
  "serde",
